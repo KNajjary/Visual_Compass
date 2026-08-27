@@ -156,25 +156,25 @@ fun CameraScreen(
             )
         }
 
-        // --------------------------------------------------
-        // Debug information
-        // --------------------------------------------------
+        DisposableEffect(cameraManager) {
 
-        val debugInfo = DebugInfo(
-            frameNumber = frameNumber,
-            fps = fps,
-            pose = cameraPose
-        )
+            onDispose {
 
-        // --------------------------------------------------
-        // Camera UI
-        // --------------------------------------------------
+                cameraManager.shutdown()
+            }
+        }
+
+        val debugInfo =
+            DebugInfo(
+                frameNumber = frameNumber,
+                fps = fps,
+                pose = cameraPose
+            )
 
         Box(
             modifier = modifier.fillMaxSize()
         ) {
 
-            // Camera preview
             CameraPreview(
                 modifier = Modifier.fillMaxSize(),
                 onPreviewReady = { previewView ->
@@ -185,7 +185,6 @@ fun CameraScreen(
                 }
             )
 
-            // Debug panel
             CameraOverlay(
                 debugInfo = debugInfo,
                 detections = modelOutput.detections,
@@ -197,7 +196,8 @@ fun CameraScreen(
 
     } else {
 
-        Text("در انتظار مجوز دوربین...")
-
+        Text(
+            "در انتظار مجوز دوربین..."
+        )
     }
 }

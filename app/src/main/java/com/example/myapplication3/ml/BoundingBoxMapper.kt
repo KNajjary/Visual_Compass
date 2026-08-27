@@ -20,87 +20,167 @@ object BoundingBoxMapper {
     ): ScreenBox {
 
         /*
-         * این همان scale ای است که در
-         * ImagePreprocessor استفاده کردیم:
+         * IMPORTANT:
          *
-         * scale = max(
-         *     imageWidth / 300,
-         *     imageHeight / 300
-         * )
+         * The TFLite model uses a 320x320 input.
+         *
+         * ImagePreprocessor does:
+         *
+         * rotated image
+         *      ↓
+         * center square crop
+         *      ↓
+         * resize to 320x320
+         *
+         * Therefore the bounding box must be mapped
+         * back from the 320x320 model space.
          */
 
-        val scale = max(
-            imageWidth.toFloat() / 300f,
-            imageHeight.toFloat() / 300f
-        )
+        val modelSize =
+            320f
 
         /*
-         * اندازه تصویر بعد از scale
+         * ------------------------------------------
+         * 1. Calculate square crop
+         * ------------------------------------------
+         *
+         * ImagePreprocessor uses:
+         *
+         * cropSize = min(imageWidth, imageHeight)
+         *
+         * cropLeft = (imageWidth - cropSize) / 2
+         * cropTop  = (imageHeight - cropSize) / 2
          */
-        val scaledWidth =
-            imageWidth / scale
 
-        val scaledHeight =
-            imageHeight / scale
+        val cropSize =
+            minOf(
+                imageWidth,
+                imageHeight
+            ).toFloat()
+
+        val cropLeft =
+            (imageWidth - cropSize) / 2f
+
+        val cropTop =
+            (imageHeight - cropSize) / 2f
 
         /*
-         * مقدار crop در تصویر 300x300
-         */
-        val cropX =
-            (300f - scaledWidth) / 2f
-
-        val cropY =
-            (300f - scaledHeight) / 2f
-
-        /*
-         * Detection coordinates:
+         * ------------------------------------------
+         * 2. Detection coordinates
+         * ------------------------------------------
          *
-         * normalized 0..1
+         * Detection coordinates are normalized:
          *
-         * تبدیل به مختصات 300x300
+         * 0.0 ... 1.0
+         *
+         * Convert them into 320x320 model space.
          */
+
         val modelLeft =
-            detection.left * 300f
+            detection.left * modelSize
 
         val modelTop =
-            detection.top * 300f
+            detection.top * modelSize
 
         val modelRight =
-            detection.right * 300f
+            detection.right * modelSize
 
         val modelBottom =
-            detection.bottom * 300f
+            detection.bottom * modelSize
 
         /*
-         * حذف crop
+         * ------------------------------------------
+         * 3. Model space -> cropped image space
+         * ------------------------------------------
+         *
+         * The 320x320 image was created by resizing
+         * the square crop.
+         *
+         * Therefore:
+         *
+         * crop coordinate =
+         * model coordinate / 320 * cropSize
          */
+
+        val cropX1 =
+            modelLeft / modelSize * cropSize
+
+        val cropY1 =
+            modelTop / modelSize * cropSize
+
+        val cropX2 =
+            modelRight / modelSize * cropSize
+
+        val cropY2 =
+            modelBottom / modelSize * cropSize
+
+        /*
+         * ------------------------------------------
+         * 4. Cropped image -> rotated image
+         * ------------------------------------------
+         */
+
         val imageX1 =
-            (modelLeft - cropX) * scale
+            cropLeft + cropX1
 
         val imageY1 =
-            (modelTop - cropY) * scale
+            cropTop + cropY1
 
         val imageX2 =
-            (modelRight - cropX) * scale
+            cropLeft + cropX2
 
         val imageY2 =
-            (modelBottom - cropY) * scale
+            cropTop + cropY2
 
         /*
-         * تبدیل مختصات تصویر اصلی
-         * به PreviewView
+         * ------------------------------------------
+         * 5. Rotated image -> PreviewView
+         * ------------------------------------------
          */
+
         val xScale =
-            previewWidth / imageWidth.toFloat()
+            previewWidth /
+                    imageWidth.toFloat()
 
         val yScale =
-            previewHeight / imageHeight.toFloat()
+            previewHeight /
+                    imageHeight.toFloat()
+
+        /*
+         * ------------------------------------------
+         * 6. Final screen coordinates
+         * ------------------------------------------
+         */
 
         return ScreenBox(
-            left = imageX1 * xScale,
-            top = imageY1 * yScale,
-            right = imageX2 * xScale,
-            bottom = imageY2 * yScale
+
+            left =
+                (imageX1 * xScale)
+                    .coerceIn(
+                        0f,
+                        previewWidth
+                    ),
+
+            top =
+                (imageY1 * yScale)
+                    .coerceIn(
+                        0f,
+                        previewHeight
+                    ),
+
+            right =
+                (imageX2 * xScale)
+                    .coerceIn(
+                        0f,
+                        previewWidth
+                    ),
+
+            bottom =
+                (imageY2 * yScale)
+                    .coerceIn(
+                        0f,
+                        previewHeight
+                    )
         )
     }
 }

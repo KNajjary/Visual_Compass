@@ -1,5 +1,6 @@
 package com.example.myapplication3.camera
 
+import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.example.myapplication3.ml.ModelOutput
@@ -11,43 +12,95 @@ class FrameAnalyzer(
     private val onResult: (ModelOutput) -> Unit
 ) : ImageAnalysis.Analyzer {
 
-    private val changeDetector = FrameChangeDetector()
+    companion object {
 
-    private var lastProcessTime = 0L
+        private const val TAG =
+            "FrameAnalyzer"
+
+        /*
+         * Run inference approximately every 300 ms.
+         *
+         * 1000 ms = 1 inference / second
+         * 300 ms  = ~3.3 inferences / second
+         */
+        private const val INFERENCE_INTERVAL_MS =
+            300L
+    }
+
+    private var lastProcessTime =
+        0L
 
     override fun analyze(image: ImageProxy) {
 
-        val currentTime = System.currentTimeMillis()
+        /*
+         * This method is already running on the
+         * dedicated background executor created
+         * in CameraManager.
+         */
 
-        // فقط هر یک ثانیه یک فریم را بررسی کن
-        if (currentTime - lastProcessTime < 1000L) {
+        val currentTime =
+            System.currentTimeMillis()
+
+        /*
+         * Throttle inference.
+         *
+         * Camera may produce 30+ frames/sec,
+         * but we don't need to run TFLite on every frame.
+         */
+        if (
+            currentTime - lastProcessTime <
+            INFERENCE_INTERVAL_MS
+        ) {
+
             image.close()
+
             return
         }
 
-        lastProcessTime = currentTime
+        lastProcessTime =
+            currentTime
 
-        // آیا تصویر تغییر کرده؟
-        val changed = changeDetector.hasChanged(image)
-
-        if (!changed) {
-            image.close()
-            return
-        }
-
-        // تصویر تغییر کرده است
         statistics.onFrame()
 
         try {
 
-            // اجرای مدل
-            val result = modelRunner.run(image)
+            /*
+             * --------------------------------------
+             * PREPROCESSING + TFLITE INFERENCE
+             * --------------------------------------
+             *
+             * Runs on background thread.
+             */
+            val result =
+                modelRunner.run(image)
 
-            // ارسال نتیجه به بیرون
+            /*
+             * --------------------------------------
+             * RESULT
+             * --------------------------------------
+             *
+             * Important:
+             *
+             * onResult may update UI state.
+             *
+             * If the UI callback must explicitly run
+             * on Main, we can dispatch it there later.
+             */
             onResult(result)
+
+        } catch (e: Exception) {
+
+            Log.e(
+                TAG,
+                "Model inference failed",
+                e
+            )
 
         } finally {
 
+            /*
+             * ImageProxy MUST always be closed.
+             */
             image.close()
         }
     }

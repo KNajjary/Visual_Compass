@@ -22,6 +22,13 @@ import androidx.compose.ui.unit.sp
 import com.example.myapplication3.ml.BoundingBoxMapper
 import com.example.myapplication3.ml.Detection
 
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Button
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+
 @Composable
 fun CameraOverlay(
     debugInfo: DebugInfo,
@@ -32,6 +39,10 @@ fun CameraOverlay(
 ) {
 
     val pose = debugInfo.pose
+
+    var debugPanelExpanded by remember {
+        mutableStateOf(false)
+    }
 
     Box(
         modifier = modifier.fillMaxSize()
@@ -105,116 +116,113 @@ fun CameraOverlay(
                 .padding(12.dp)
         ) {
 
-            // Performance
-
             Text(
-                text =
-                    "Frame     : ${debugInfo.frameNumber}",
+                text = if (debugPanelExpanded) {
+                    "▲ Info Panel"
+                } else {
+                    "▼ Info Panel"
+                },
                 color = Color.White,
-                fontSize = 16.sp
+                fontSize = 16.sp,
+                modifier = Modifier.clickable {
+                    debugPanelExpanded = !debugPanelExpanded
+                }
             )
 
-            Text(
-                text =
-                    "FPS       : ${
+            if (debugPanelExpanded) {
+
+                Text(
+                    text = "Frame     : ${debugInfo.frameNumber}",
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
+
+                Text(
+                    text = "FPS       : ${
                         debugInfo.fps
                             ?.let {
                                 "%.1f".format(it)
                             }
                             ?: "---"
                     }",
-                color = Color.White,
-                fontSize = 16.sp
-            )
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
 
-            Spacer(
-                modifier = Modifier.height(12.dp)
-            )
+                Spacer(
+                    modifier = Modifier.height(12.dp)
+                )
 
-            // Camera
+                Text(
+                    text = "========== Camera ==========",
+                    color = Color.Yellow,
+                    fontSize = 18.sp
+                )
 
-            Text(
-                text =
-                    "========== Camera ==========",
-                color = Color.Yellow,
-                fontSize = 18.sp
-            )
+                Text(
+                    text = "Yaw       : %.1f°".format(pose.yaw),
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
 
-            Text(
-                text =
-                    "Yaw       : %.1f°"
-                        .format(pose.yaw),
-                color = Color.White,
-                fontSize = 16.sp
-            )
+                Text(
+                    text = "Pitch     : %.1f°".format(pose.pitch),
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
 
-            Text(
-                text =
-                    "Pitch     : %.1f°"
-                        .format(pose.pitch),
-                color = Color.White,
-                fontSize = 16.sp
-            )
+                Text(
+                    text = "Roll      : %.1f°".format(pose.roll),
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
 
-            Text(
-                text =
-                    "Roll      : %.1f°"
-                        .format(pose.roll),
-                color = Color.White,
-                fontSize = 16.sp
-            )
+                Spacer(
+                    modifier = Modifier.height(12.dp)
+                )
 
-            Spacer(
-                modifier = Modifier.height(12.dp)
-            )
+                Text(
+                    text = "========== Position ==========",
+                    color = Color.Yellow,
+                    fontSize = 18.sp
+                )
 
-            // Position
-
-            Text(
-                text =
-                    "========== Position ==========",
-                color = Color.Yellow,
-                fontSize = 18.sp
-            )
-
-            Text(
-                text =
-                    "Latitude  : ${
+                Text(
+                    text = "Latitude  : ${
                         pose.latitude
                             ?.let {
                                 "%.6f".format(it)
                             }
                             ?: "---"
                     }",
-                color = Color.White,
-                fontSize = 16.sp
-            )
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
 
-            Text(
-                text =
-                    "Longitude : ${
+                Text(
+                    text = "Longitude : ${
                         pose.longitude
                             ?.let {
                                 "%.6f".format(it)
                             }
                             ?: "---"
                     }",
-                color = Color.White,
-                fontSize = 16.sp
-            )
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
 
-            Text(
-                text =
-                    "Altitude  : ${
+                Text(
+                    text = "Altitude  : ${
                         pose.altitude
                             ?.let {
                                 "%.1f m".format(it)
                             }
                             ?: "---"
                     }",
-                color = Color.White,
-                fontSize = 16.sp
-            )
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
+            }
         }
 
         /*
