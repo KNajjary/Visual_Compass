@@ -1,7 +1,5 @@
 package com.example.myapplication3.ml
 
-import kotlin.math.max
-
 data class ScreenBox(
     val left: Float,
     val top: Float,
@@ -11,6 +9,11 @@ data class ScreenBox(
 
 object BoundingBoxMapper {
 
+    /*
+     * ==========================================
+     * Detection -> Screen
+     * ==========================================
+     */
     fun map(
         detection: Detection,
         imageWidth: Int,
@@ -20,31 +23,11 @@ object BoundingBoxMapper {
     ): ScreenBox {
 
         /*
-         * IMPORTANT:
-         *
-         * The TFLite model uses a 320x320 input.
-         *
-         * ImagePreprocessor does:
-         *
-         * rotated image
-         *      ↓
-         * center square crop
-         *      ↓
-         * resize to 320x320
-         *
-         * Therefore the bounding box must be mapped
-         * back from the 320x320 model space.
-         */
-
-        val modelSize =
-            320f
-
-        /*
          * ------------------------------------------
          * 1. Calculate square crop
          * ------------------------------------------
          *
-         * ImagePreprocessor uses:
+         * ImagePreprocessor does:
          *
          * cropSize = min(imageWidth, imageHeight)
          *
@@ -66,57 +49,25 @@ object BoundingBoxMapper {
 
         /*
          * ------------------------------------------
-         * 2. Detection coordinates
+         * 2. Detection normalized -> crop space
          * ------------------------------------------
-         *
-         * Detection coordinates are normalized:
-         *
-         * 0.0 ... 1.0
-         *
-         * Convert them into 320x320 model space.
-         */
-
-        val modelLeft =
-            detection.left * modelSize
-
-        val modelTop =
-            detection.top * modelSize
-
-        val modelRight =
-            detection.right * modelSize
-
-        val modelBottom =
-            detection.bottom * modelSize
-
-        /*
-         * ------------------------------------------
-         * 3. Model space -> cropped image space
-         * ------------------------------------------
-         *
-         * The 320x320 image was created by resizing
-         * the square crop.
-         *
-         * Therefore:
-         *
-         * crop coordinate =
-         * model coordinate / 320 * cropSize
          */
 
         val cropX1 =
-            modelLeft / modelSize * cropSize
+            detection.left * cropSize
 
         val cropY1 =
-            modelTop / modelSize * cropSize
+            detection.top * cropSize
 
         val cropX2 =
-            modelRight / modelSize * cropSize
+            detection.right * cropSize
 
         val cropY2 =
-            modelBottom / modelSize * cropSize
+            detection.bottom * cropSize
 
         /*
          * ------------------------------------------
-         * 4. Cropped image -> rotated image
+         * 3. Crop space -> rotated image space
          * ------------------------------------------
          */
 
@@ -134,7 +85,7 @@ object BoundingBoxMapper {
 
         /*
          * ------------------------------------------
-         * 5. Rotated image -> PreviewView
+         * 4. Rotated image -> Preview
          * ------------------------------------------
          */
 
@@ -148,7 +99,7 @@ object BoundingBoxMapper {
 
         /*
          * ------------------------------------------
-         * 6. Final screen coordinates
+         * 5. Final screen coordinates
          * ------------------------------------------
          */
 
@@ -181,6 +132,104 @@ object BoundingBoxMapper {
                         0f,
                         previewHeight
                     )
+        )
+    }
+
+    /*
+     * ==========================================
+     * Processing Area -> Screen
+     * ==========================================
+     *
+     * Returns the exact square area that
+     * ImagePreprocessor sends to the model.
+     *
+     * Pipeline:
+     *
+     * rotated image
+     *       ↓
+     * center square crop
+     *       ↓
+     * resize 320x320
+     *
+     * The returned ScreenBox represents the
+     * square crop on the Preview.
+     */
+    fun mapProcessingArea(
+        imageWidth: Int,
+        imageHeight: Int,
+        previewWidth: Float,
+        previewHeight: Float
+    ): ScreenBox {
+
+        /*
+         * ------------------------------------------
+         * Same crop calculation as ImagePreprocessor
+         * ------------------------------------------
+         */
+
+        val cropSize =
+            minOf(
+                imageWidth,
+                imageHeight
+            ).toFloat()
+
+        val cropLeft =
+            (imageWidth - cropSize) / 2f
+
+        val cropTop =
+            (imageHeight - cropSize) / 2f
+
+        /*
+         * ------------------------------------------
+         * Rotated image -> Preview
+         * ------------------------------------------
+         */
+
+        val xScale =
+            previewWidth /
+                    imageWidth.toFloat()
+
+        val yScale =
+            previewHeight /
+                    imageHeight.toFloat()
+
+        val screenLeft =
+            cropLeft * xScale
+
+        val screenTop =
+            cropTop * yScale
+
+        val screenRight =
+            (cropLeft + cropSize) * xScale
+
+        val screenBottom =
+            (cropTop + cropSize) * yScale
+
+        return ScreenBox(
+
+            left =
+                screenLeft.coerceIn(
+                    0f,
+                    previewWidth
+                ),
+
+            top =
+                screenTop.coerceIn(
+                    0f,
+                    previewHeight
+                ),
+
+            right =
+                screenRight.coerceIn(
+                    0f,
+                    previewWidth
+                ),
+
+            bottom =
+                screenBottom.coerceIn(
+                    0f,
+                    previewHeight
+                )
         )
     }
 }
