@@ -1,3 +1,4 @@
+
 package com.example.myapplication3.ml
 
 data class ScreenBox(
@@ -11,9 +12,81 @@ object BoundingBoxMapper {
 
     /*
      * ==========================================
+     * Camera Image -> Preview FIT_CENTER
+     * ==========================================
+     *
+     * The camera image is fitted inside the PreviewView
+     * while preserving its aspect ratio.
+     *
+     * Therefore:
+     *
+     * scale = min(
+     *     previewWidth / imageWidth,
+     *     previewHeight / imageHeight
+     * )
+     *
+     * The remaining space becomes letterbox/pillarbox.
+     */
+
+    private fun calculateImageRect(
+        imageWidth: Int,
+        imageHeight: Int,
+        previewWidth: Float,
+        previewHeight: Float
+    ): ScreenBox {
+
+        val imageW =
+            imageWidth.toFloat()
+
+        val imageH =
+            imageHeight.toFloat()
+
+        val scale =
+            minOf(
+                previewWidth / imageW,
+                previewHeight / imageH
+            )
+
+        val displayedWidth =
+            imageW * scale
+
+        val displayedHeight =
+            imageH * scale
+
+        val offsetX =
+            (previewWidth - displayedWidth) / 2f
+
+        val offsetY =
+            (previewHeight - displayedHeight) / 2f
+
+        return ScreenBox(
+            left = offsetX,
+            top = offsetY,
+            right = offsetX + displayedWidth,
+            bottom = offsetY + displayedHeight
+        )
+    }
+
+    /*
+     * ==========================================
      * Detection -> Screen
      * ==========================================
+     *
+     * Pipeline:
+     *
+     * rotated image
+     *       ↓
+     * center square crop
+     *       ↓
+     * 320x320
+     *       ↓
+     * detection normalized coordinates
+     *       ↓
+     * rotated image coordinates
+     *       ↓
+     * FIT_CENTER Preview coordinates
      */
+
     fun map(
         detection: Detection,
         imageWidth: Int,
@@ -26,13 +99,6 @@ object BoundingBoxMapper {
          * ------------------------------------------
          * 1. Calculate square crop
          * ------------------------------------------
-         *
-         * ImagePreprocessor does:
-         *
-         * cropSize = min(imageWidth, imageHeight)
-         *
-         * cropLeft = (imageWidth - cropSize) / 2
-         * cropTop  = (imageHeight - cropSize) / 2
          */
 
         val cropSize =
@@ -67,7 +133,7 @@ object BoundingBoxMapper {
 
         /*
          * ------------------------------------------
-         * 3. Crop space -> rotated image space
+         * 3. Crop space -> image space
          * ------------------------------------------
          */
 
@@ -85,53 +151,77 @@ object BoundingBoxMapper {
 
         /*
          * ------------------------------------------
-         * 4. Rotated image -> Preview
+         * 4. Calculate actual displayed image rect
          * ------------------------------------------
          */
 
-        val xScale =
-            previewWidth /
-                    imageWidth.toFloat()
+        val imageRect =
+            calculateImageRect(
+                imageWidth = imageWidth,
+                imageHeight = imageHeight,
+                previewWidth = previewWidth,
+                previewHeight = previewHeight
+            )
 
-        val yScale =
-            previewHeight /
-                    imageHeight.toFloat()
+        val scale =
+            minOf(
+                previewWidth / imageWidth.toFloat(),
+                previewHeight / imageHeight.toFloat()
+            )
 
         /*
          * ------------------------------------------
-         * 5. Final screen coordinates
+         * 5. Image -> Preview
+         * ------------------------------------------
+         */
+
+        val screenX1 =
+            imageRect.left +
+                    imageX1 * scale
+
+        val screenY1 =
+            imageRect.top +
+                    imageY1 * scale
+
+        val screenX2 =
+            imageRect.left +
+                    imageX2 * scale
+
+        val screenY2 =
+            imageRect.top +
+                    imageY2 * scale
+
+        /*
+         * ------------------------------------------
+         * 6. Clamp to actual displayed image
          * ------------------------------------------
          */
 
         return ScreenBox(
 
             left =
-                (imageX1 * xScale)
-                    .coerceIn(
-                        0f,
-                        previewWidth
-                    ),
+                screenX1.coerceIn(
+                    imageRect.left,
+                    imageRect.right
+                ),
 
             top =
-                (imageY1 * yScale)
-                    .coerceIn(
-                        0f,
-                        previewHeight
-                    ),
+                screenY1.coerceIn(
+                    imageRect.top,
+                    imageRect.bottom
+                ),
 
             right =
-                (imageX2 * xScale)
-                    .coerceIn(
-                        0f,
-                        previewWidth
-                    ),
+                screenX2.coerceIn(
+                    imageRect.left,
+                    imageRect.right
+                ),
 
             bottom =
-                (imageY2 * yScale)
-                    .coerceIn(
-                        0f,
-                        previewHeight
-                    )
+                screenY2.coerceIn(
+                    imageRect.top,
+                    imageRect.bottom
+                )
         )
     }
 
@@ -140,8 +230,8 @@ object BoundingBoxMapper {
      * Processing Area -> Screen
      * ==========================================
      *
-     * Returns the exact square area that
-     * ImagePreprocessor sends to the model.
+     * This represents the exact square region
+     * that ImagePreprocessor sends to EfficientDet.
      *
      * Pipeline:
      *
@@ -149,11 +239,9 @@ object BoundingBoxMapper {
      *       ↓
      * center square crop
      *       ↓
-     * resize 320x320
-     *
-     * The returned ScreenBox represents the
-     * square crop on the Preview.
+     * 320x320
      */
+
     fun mapProcessingArea(
         imageWidth: Int,
         imageHeight: Int,
@@ -163,7 +251,7 @@ object BoundingBoxMapper {
 
         /*
          * ------------------------------------------
-         * Same crop calculation as ImagePreprocessor
+         * 1. Calculate square crop
          * ------------------------------------------
          */
 
@@ -181,54 +269,75 @@ object BoundingBoxMapper {
 
         /*
          * ------------------------------------------
-         * Rotated image -> Preview
+         * 2. Calculate actual FIT_CENTER image rect
          * ------------------------------------------
          */
 
-        val xScale =
-            previewWidth /
-                    imageWidth.toFloat()
+        val imageRect =
+            calculateImageRect(
+                imageWidth = imageWidth,
+                imageHeight = imageHeight,
+                previewWidth = previewWidth,
+                previewHeight = previewHeight
+            )
 
-        val yScale =
-            previewHeight /
-                    imageHeight.toFloat()
+        val scale =
+            minOf(
+                previewWidth / imageWidth.toFloat(),
+                previewHeight / imageHeight.toFloat()
+            )
+
+        /*
+         * ------------------------------------------
+         * 3. Crop -> Preview
+         * ------------------------------------------
+         */
 
         val screenLeft =
-            cropLeft * xScale
+            imageRect.left +
+                    cropLeft * scale
 
         val screenTop =
-            cropTop * yScale
+            imageRect.top +
+                    cropTop * scale
 
         val screenRight =
-            (cropLeft + cropSize) * xScale
+            imageRect.left +
+                    (cropLeft + cropSize) * scale
 
         val screenBottom =
-            (cropTop + cropSize) * yScale
+            imageRect.top +
+                    (cropTop + cropSize) * scale
+
+        /*
+         * ------------------------------------------
+         * 4. Return processing area
+         * ------------------------------------------
+         */
 
         return ScreenBox(
-
             left =
                 screenLeft.coerceIn(
-                    0f,
-                    previewWidth
+                    imageRect.left,
+                    imageRect.right
                 ),
 
             top =
                 screenTop.coerceIn(
-                    0f,
-                    previewHeight
+                    imageRect.top,
+                    imageRect.bottom
                 ),
 
             right =
                 screenRight.coerceIn(
-                    0f,
-                    previewWidth
+                    imageRect.left,
+                    imageRect.right
                 ),
 
             bottom =
                 screenBottom.coerceIn(
-                    0f,
-                    previewHeight
+                    imageRect.top,
+                    imageRect.bottom
                 )
         )
     }

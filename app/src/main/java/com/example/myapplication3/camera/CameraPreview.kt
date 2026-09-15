@@ -19,7 +19,7 @@ fun CameraPreview(
             PreviewView(context).also {
 
                 it.scaleType =
-                    PreviewView.ScaleType.FILL_CENTER
+                    PreviewView.ScaleType.FIT_CENTER
 
                 onPreviewReady(it)
             }
